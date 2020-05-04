@@ -22,12 +22,12 @@ class MainActivity : AppCompatActivity() {
     private val stringItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,String>()
         .onPrepare { it.root.alpha=0.5f }
         .onBind { binding, item, _, _ -> binding.text.text = item }
-        .setOnViewClickListener(ViewItemBinding::text){item, _, _ -> Toast.makeText(context,item,Toast.LENGTH_SHORT).show() }
+        .setOnViewClickListener(ViewItemBinding::text){_,view,item, _, _ -> Toast.makeText(view.context,item,Toast.LENGTH_SHORT).show() }
         .build()
 
     private val intItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,Int>()
         .onBind { binding, item, _, _ -> binding.text.text="Item $item" }
-        .setOnViewClickListener { item, _, _ ->  Toast.makeText(context,item.toString(),Toast.LENGTH_SHORT).show()}
+        .setOnViewClickListener { _,view,item, _, _ ->  Toast.makeText(view.context,item.toString(),Toast.LENGTH_SHORT).show()}
         .build()
 
     private val doubleItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,Double>()
