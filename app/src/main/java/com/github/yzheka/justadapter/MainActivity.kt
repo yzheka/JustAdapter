@@ -19,22 +19,22 @@ class MainActivity : AppCompatActivity() {
         5f
     )
 
-    private val stringItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,String>()
+    private val stringItemBinding=ItemBinding.viewBindingBuilder<ViewItemBinding,String>()
         .onPrepare { it.root.alpha=0.5f }
         .onBind { binding, item, _, _ -> binding.text.text = item }
         .setOnViewClickListener(ViewItemBinding::text){ Toast.makeText(it.view.context,it.item,Toast.LENGTH_SHORT).show() }
         .build()
 
-    private val intItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,Int>()
+    private val intItemBinding=ItemBinding.viewBindingBuilder<ViewItemBinding,Int>()
         .onBind { binding, item, _, _ -> binding.text.text="Item $item" }
         .setOnViewClickListener { Toast.makeText(it.view.context,it.item.toString(),Toast.LENGTH_SHORT).show()}
         .build()
 
-    private val doubleItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,Double>()
+    private val doubleItemBinding=ItemBinding.viewBindingBuilder<ViewItemBinding,Double>()
         .onBind { binding, item, _, _ -> binding.text.text="Item $item" }
         .build()
 
-    private val floatItemBinding=ItemBinding.ViewBindingBuilder.create<ViewItemBinding,Float>()
+    private val floatItemBinding=ItemBinding.viewBindingBuilder<ViewItemBinding,Float>()
         .onBind { binding, item, _, _ -> binding.text.text="Item $item" }
         .build()
 

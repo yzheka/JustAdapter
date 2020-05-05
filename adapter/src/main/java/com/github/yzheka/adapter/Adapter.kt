@@ -44,68 +44,6 @@ interface ItemBinding{
         fun setOnViewClickListener(view:KProperty1<B,View>?=null,onClick:(ItemInfo<B,T>)->Unit):ViewBindingBuilder<B,T>
         fun setOnViewLongClickListener(view:KProperty1<B,View>?=null,onClick:(ItemInfo<B,T>)->Unit):ViewBindingBuilder<B,T>
         fun build():ItemBinding
-
-        companion object{
-            inline fun <reified B:ViewBinding,reified T>create():ViewBindingBuilder<B,T> = object : ViewBindingBuilder<B,T>{
-                private var mPrepare:(B)->Unit={}
-                private var mBind:(B,T,Int,Int)->Unit={_,_,_,_->}
-                private var mUnbind:(B)->Unit={}
-                private var mCanBind:(T,Int,Int)->Boolean={_,_,_->true}
-                private val mClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
-                private val mLongClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
-
-                override fun setOnViewClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): ViewBindingBuilder<B, T> = apply { mClickListeners[view]=onClick }
-                override fun setOnViewLongClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): ViewBindingBuilder<B, T> = apply { mLongClickListeners[view]=onClick }
-                override fun onPrepare(prepare: (binding: B) -> Unit): ViewBindingBuilder<B, T> = apply { mPrepare=prepare }
-                override fun onBind(onBind: (binding: B, item: T, position: Int, totalCount: Int) -> Unit): ViewBindingBuilder<B, T> = apply { mBind=onBind }
-                override fun onUnbind(unbind: (B) -> Unit): ViewBindingBuilder<B, T> = apply { mUnbind=unbind }
-                override fun canBind(predicate: (item: T, position: Int, totalCount: Int) -> Boolean): ViewBindingBuilder<B, T> = apply { mCanBind=predicate }
-                override fun build(): ItemBinding = object : ItemBinding{
-                    private val prepare=mPrepare
-                    private val bind=mBind
-                    private val unbind=mUnbind
-                    private val predicate=mCanBind
-                    private val clickListeners=HashMap(mClickListeners)
-                    private val longClickListeners=HashMap(mLongClickListeners)
-
-                    override fun canBind(item: Any?, position: Int, totalCount: Int): Boolean = item is T&&predicate(item,position, totalCount)
-
-                    override fun onUnbindView(view: View) {
-                        val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                        if(!method.isAccessible)method.isAccessible=true
-                        val binding=method.invoke(null,view) as B
-                        unbind(binding)
-                    }
-
-                    override fun onCreateView(inflater: LayoutInflater, parent: ViewGroup): View {
-                        val method=B::class.java.getDeclaredMethod("inflate",LayoutInflater::class.java,ViewGroup::class.java,Boolean::class.javaPrimitiveType)
-                        if(!method.isAccessible)method.isAccessible=true
-                        val binidng=method.invoke(null,inflater,parent,false) as B
-                        prepare(binidng)
-                        return binidng.root
-                    }
-
-                    override fun onBindView(view: View,item: Any?,position: Int,totalCount: Int) {
-                        val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                        if(!method.isAccessible)method.isAccessible=true
-                        val binding=method.invoke(null,view) as B
-                        val typedItem=item as T
-                        clickListeners.forEach { entry->
-                            val v=entry.key?.get(binding)?:binding.root
-                            v.setOnClickListener{entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))}
-                        }
-                        longClickListeners.forEach { entry ->
-                            val v=entry.key?.get(binding)?:binding.root
-                            v.setOnLongClickListener {
-                                entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))
-                                true
-                            }
-                        }
-                        bind(binding,typedItem,position,totalCount)
-                    }
-                }
-            }
-        }
     }
 
     interface DataBindingBuilder<B:ViewDataBinding,T>:ViewBindingBuilder<B,T>{
@@ -121,86 +59,146 @@ interface ItemBinding{
         override fun canBind(predicate: (item: T, position: Int, totalCount: Int) -> Boolean): DataBindingBuilder<B, T>
         override fun setOnViewClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): DataBindingBuilder<B, T>
         override fun setOnViewLongClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): DataBindingBuilder<B, T>
+    }
 
-        companion object{
-            inline fun <reified B:ViewDataBinding,reified T> create():DataBindingBuilder<B,T> = object : DataBindingBuilder<B,T>{
-                private var mPrepare:(B)->Unit={}
-                private var mBind:(B,T,Int,Int)->Unit={_,_,_,_->}
-                private var mUnbind:(B)->Unit={}
-                private var mCanBind:(T,Int,Int)->Boolean={_,_,_->true}
-                private var mItemVariableId=0
-                private var mPositionVariableId=0
-                private var mTotalCountVariableId=0
-                private val mExtras=SparseArray<Any?>()
-                private var mLifecycleOwner:LifecycleOwner?=null
-                private val mClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
-                private val mLongClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
+    companion object{
+        inline fun <reified B:ViewBinding,reified T>viewBindingBuilder():ViewBindingBuilder<B,T> = object : ViewBindingBuilder<B,T>{
+            private var mPrepare:(B)->Unit={}
+            private var mBind:(B,T,Int,Int)->Unit={_,_,_,_->}
+            private var mUnbind:(B)->Unit={}
+            private var mCanBind:(T,Int,Int)->Boolean={_,_,_->true}
+            private val mClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
+            private val mLongClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
 
-                override fun onPrepare(prepare: (binding: B) -> Unit): DataBindingBuilder<B, T> = apply { mPrepare=prepare }
-                override fun onBind(onBind: (binding: B, item: T, position: Int, totalCount: Int) -> Unit): DataBindingBuilder<B, T> = apply { mBind=onBind }
-                override fun onUnbind(unbind: (B) -> Unit): DataBindingBuilder<B, T> = apply { mUnbind=unbind }
-                override fun canBind(predicate: (item: T, position: Int, totalCount: Int) -> Boolean): DataBindingBuilder<B, T> = apply { mCanBind=predicate }
-                override fun setItemVariableId(id: Int): DataBindingBuilder<B, T> = apply { mItemVariableId=id }
-                override fun setPositionVariableId(id: Int): DataBindingBuilder<B, T> = apply { mPositionVariableId=id }
-                override fun setTotalCountVariableId(id: Int): DataBindingBuilder<B, T> = apply { mTotalCountVariableId=id }
-                override fun putExtra(variableId: Int, value: Any?): DataBindingBuilder<B, T> = apply { mExtras.put(variableId,value) }
-                override fun setLifecycleOwner(lifecycleOwner: LifecycleOwner?): DataBindingBuilder<B, T> = apply { mLifecycleOwner=lifecycleOwner }
-                override fun setOnViewClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): DataBindingBuilder<B, T> = apply { mClickListeners[view]=onClick }
-                override fun setOnViewLongClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): DataBindingBuilder<B, T> = apply { mLongClickListeners[view]=onClick }
+            override fun setOnViewClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): ViewBindingBuilder<B, T> = apply { mClickListeners[view]=onClick }
+            override fun setOnViewLongClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): ViewBindingBuilder<B, T> = apply { mLongClickListeners[view]=onClick }
+            override fun onPrepare(prepare: (binding: B) -> Unit): ViewBindingBuilder<B, T> = apply { mPrepare=prepare }
+            override fun onBind(onBind: (binding: B, item: T, position: Int, totalCount: Int) -> Unit): ViewBindingBuilder<B, T> = apply { mBind=onBind }
+            override fun onUnbind(unbind: (B) -> Unit): ViewBindingBuilder<B, T> = apply { mUnbind=unbind }
+            override fun canBind(predicate: (item: T, position: Int, totalCount: Int) -> Boolean): ViewBindingBuilder<B, T> = apply { mCanBind=predicate }
+            override fun build(): ItemBinding = object : ItemBinding{
+                private val prepare=mPrepare
+                private val bind=mBind
+                private val unbind=mUnbind
+                private val predicate=mCanBind
+                private val clickListeners=HashMap(mClickListeners)
+                private val longClickListeners=HashMap(mLongClickListeners)
 
-                override fun build(): ItemBinding = object : ItemBinding{
-                    private val prepare=mPrepare
-                    private val bind=mBind
-                    private val unbind=mUnbind
-                    private val predicate=mCanBind
-                    private val itemVariableId=mItemVariableId
-                    private val positionVariableId=mPositionVariableId
-                    private val totalCountVariableId=mTotalCountVariableId
-                    private val extras=mExtras.clone()
-                    private val lifecycleOwner=mLifecycleOwner
-                    private val clickListeners=HashMap(mClickListeners)
-                    private val longClickListeners=HashMap(mLongClickListeners)
+                override fun canBind(item: Any?, position: Int, totalCount: Int): Boolean = item is T&&predicate(item,position, totalCount)
 
-                    override fun canBind(item: Any?, position: Int, totalCount: Int): Boolean = item is T&&predicate(item,position, totalCount)
+                override fun onUnbindView(view: View) {
+                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
+                    if(!method.isAccessible)method.isAccessible=true
+                    val binding=method.invoke(null,view) as B
+                    unbind(binding)
+                }
 
-                    override fun onUnbindView(view: View) {
-                        val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                        if(!method.isAccessible)method.isAccessible=true
-                        val binding=method.invoke(null,view) as B
-                        unbind(binding)
+                override fun onCreateView(inflater: LayoutInflater, parent: ViewGroup): View {
+                    val method=B::class.java.getDeclaredMethod("inflate",LayoutInflater::class.java,ViewGroup::class.java,Boolean::class.javaPrimitiveType)
+                    if(!method.isAccessible)method.isAccessible=true
+                    val binidng=method.invoke(null,inflater,parent,false) as B
+                    prepare(binidng)
+                    return binidng.root
+                }
+
+                override fun onBindView(view: View,item: Any?,position: Int,totalCount: Int) {
+                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
+                    if(!method.isAccessible)method.isAccessible=true
+                    val binding=method.invoke(null,view) as B
+                    val typedItem=item as T
+                    clickListeners.forEach { entry->
+                        val v=entry.key?.get(binding)?:binding.root
+                        v.setOnClickListener{entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))}
                     }
-
-                    override fun onCreateView(inflater: LayoutInflater, parent: ViewGroup): View {
-                        val method=B::class.java.getDeclaredMethod("inflate",LayoutInflater::class.java,ViewGroup::class.java,Boolean::class.javaPrimitiveType)
-                        if(!method.isAccessible)method.isAccessible=true
-                        val binidng=method.invoke(null,inflater,parent,false) as B
-                        binidng.lifecycleOwner=lifecycleOwner
-                        extras.forEach { key, value -> binidng.setVariable(key,value) }
-                        prepare(binidng)
-                        return binidng.root
-                    }
-
-                    override fun onBindView(view: View,item: Any?,position: Int,totalCount: Int) {
-                        val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                        if(!method.isAccessible)method.isAccessible=true
-                        val binding=method.invoke(null,view) as B
-                        val typedItem=item as T
-                        clickListeners.forEach { entry->
-                            val v=entry.key?.get(binding)?:binding.root
-                            v.setOnClickListener{entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))}
+                    longClickListeners.forEach { entry ->
+                        val v=entry.key?.get(binding)?:binding.root
+                        v.setOnLongClickListener {
+                            entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))
+                            true
                         }
-                        longClickListeners.forEach { entry ->
-                            val v=entry.key?.get(binding)?:binding.root
-                            v.setOnLongClickListener {
-                                entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))
-                                true
-                            }
-                        }
-                        binding.setVariable(itemVariableId,item)
-                        binding.setVariable(positionVariableId,position)
-                        binding.setVariable(totalCountVariableId,totalCount)
-                        bind(binding,typedItem,position,totalCount)
                     }
+                    bind(binding,typedItem,position,totalCount)
+                }
+            }
+        }
+
+        inline fun <reified B:ViewDataBinding,reified T> dataBindingBuilder():DataBindingBuilder<B,T> = object : DataBindingBuilder<B,T>{
+            private var mPrepare:(B)->Unit={}
+            private var mBind:(B,T,Int,Int)->Unit={_,_,_,_->}
+            private var mUnbind:(B)->Unit={}
+            private var mCanBind:(T,Int,Int)->Boolean={_,_,_->true}
+            private var mItemVariableId=0
+            private var mPositionVariableId=0
+            private var mTotalCountVariableId=0
+            private val mExtras=SparseArray<Any?>()
+            private var mLifecycleOwner:LifecycleOwner?=null
+            private val mClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
+            private val mLongClickListeners= hashMapOf<KProperty1<B,View>?,(ItemInfo<B,T>)->Unit>()
+
+            override fun onPrepare(prepare: (binding: B) -> Unit): DataBindingBuilder<B, T> = apply { mPrepare=prepare }
+            override fun onBind(onBind: (binding: B, item: T, position: Int, totalCount: Int) -> Unit): DataBindingBuilder<B, T> = apply { mBind=onBind }
+            override fun onUnbind(unbind: (B) -> Unit): DataBindingBuilder<B, T> = apply { mUnbind=unbind }
+            override fun canBind(predicate: (item: T, position: Int, totalCount: Int) -> Boolean): DataBindingBuilder<B, T> = apply { mCanBind=predicate }
+            override fun setItemVariableId(id: Int): DataBindingBuilder<B, T> = apply { mItemVariableId=id }
+            override fun setPositionVariableId(id: Int): DataBindingBuilder<B, T> = apply { mPositionVariableId=id }
+            override fun setTotalCountVariableId(id: Int): DataBindingBuilder<B, T> = apply { mTotalCountVariableId=id }
+            override fun putExtra(variableId: Int, value: Any?): DataBindingBuilder<B, T> = apply { mExtras.put(variableId,value) }
+            override fun setLifecycleOwner(lifecycleOwner: LifecycleOwner?): DataBindingBuilder<B, T> = apply { mLifecycleOwner=lifecycleOwner }
+            override fun setOnViewClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): DataBindingBuilder<B, T> = apply { mClickListeners[view]=onClick }
+            override fun setOnViewLongClickListener(view: KProperty1<B, View>?,onClick: (ItemInfo<B,T>) -> Unit): DataBindingBuilder<B, T> = apply { mLongClickListeners[view]=onClick }
+
+            override fun build(): ItemBinding = object : ItemBinding{
+                private val prepare=mPrepare
+                private val bind=mBind
+                private val unbind=mUnbind
+                private val predicate=mCanBind
+                private val itemVariableId=mItemVariableId
+                private val positionVariableId=mPositionVariableId
+                private val totalCountVariableId=mTotalCountVariableId
+                private val extras=mExtras.clone()
+                private val lifecycleOwner=mLifecycleOwner
+                private val clickListeners=HashMap(mClickListeners)
+                private val longClickListeners=HashMap(mLongClickListeners)
+
+                override fun canBind(item: Any?, position: Int, totalCount: Int): Boolean = item is T&&predicate(item,position, totalCount)
+
+                override fun onUnbindView(view: View) {
+                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
+                    if(!method.isAccessible)method.isAccessible=true
+                    val binding=method.invoke(null,view) as B
+                    unbind(binding)
+                }
+
+                override fun onCreateView(inflater: LayoutInflater, parent: ViewGroup): View {
+                    val method=B::class.java.getDeclaredMethod("inflate",LayoutInflater::class.java,ViewGroup::class.java,Boolean::class.javaPrimitiveType)
+                    if(!method.isAccessible)method.isAccessible=true
+                    val binidng=method.invoke(null,inflater,parent,false) as B
+                    binidng.lifecycleOwner=lifecycleOwner
+                    extras.forEach { key, value -> binidng.setVariable(key,value) }
+                    prepare(binidng)
+                    return binidng.root
+                }
+
+                override fun onBindView(view: View,item: Any?,position: Int,totalCount: Int) {
+                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
+                    if(!method.isAccessible)method.isAccessible=true
+                    val binding=method.invoke(null,view) as B
+                    val typedItem=item as T
+                    clickListeners.forEach { entry->
+                        val v=entry.key?.get(binding)?:binding.root
+                        v.setOnClickListener{entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))}
+                    }
+                    longClickListeners.forEach { entry ->
+                        val v=entry.key?.get(binding)?:binding.root
+                        v.setOnLongClickListener {
+                            entry.value.invoke(ItemInfo(binding,it,typedItem,position,totalCount))
+                            true
+                        }
+                    }
+                    binding.setVariable(itemVariableId,item)
+                    binding.setVariable(positionVariableId,position)
+                    binding.setVariable(totalCountVariableId,totalCount)
+                    bind(binding,typedItem,position,totalCount)
                 }
             }
         }
