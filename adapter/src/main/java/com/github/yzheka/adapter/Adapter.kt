@@ -87,9 +87,7 @@ interface ItemBinding{
                 override fun canBind(item: Any?, position: Int, totalCount: Int): Boolean = item is T&&predicate(item,position, totalCount)
 
                 override fun onUnbindView(view: View) {
-                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                    if(!method.isAccessible)method.isAccessible=true
-                    val binding=method.invoke(null,view) as B
+                    val binding=view.getTag(R.id.tag_item_binidng) as B
                     unbind(binding)
                 }
 
@@ -98,13 +96,13 @@ interface ItemBinding{
                     if(!method.isAccessible)method.isAccessible=true
                     val binidng=method.invoke(null,inflater,parent,false) as B
                     prepare(binidng)
-                    return binidng.root
+                    val view=binidng.root
+                    view.setTag(R.id.tag_item_binidng,binidng)
+                    return view
                 }
 
                 override fun onBindView(view: View,item: Any?,position: Int,totalCount: Int) {
-                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                    if(!method.isAccessible)method.isAccessible=true
-                    val binding=method.invoke(null,view) as B
+                    val binding=view.getTag(R.id.tag_item_binidng) as B
                     val typedItem=item as T
                     clickListeners.forEach { entry->
                         val v=entry.key?.get(binding)?:binding.root
@@ -163,26 +161,24 @@ interface ItemBinding{
                 override fun canBind(item: Any?, position: Int, totalCount: Int): Boolean = item is T&&predicate(item,position, totalCount)
 
                 override fun onUnbindView(view: View) {
-                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                    if(!method.isAccessible)method.isAccessible=true
-                    val binding=method.invoke(null,view) as B
+                    val binding=view.getTag(R.id.tag_item_binidng) as B
                     unbind(binding)
                 }
 
                 override fun onCreateView(inflater: LayoutInflater, parent: ViewGroup): View {
                     val method=B::class.java.getDeclaredMethod("inflate",LayoutInflater::class.java,ViewGroup::class.java,Boolean::class.javaPrimitiveType)
                     if(!method.isAccessible)method.isAccessible=true
-                    val binidng=method.invoke(null,inflater,parent,false) as B
-                    binidng.lifecycleOwner=lifecycleOwner
-                    extras.forEach { key, value -> binidng.setVariable(key,value) }
-                    prepare(binidng)
-                    return binidng.root
+                    val binding=method.invoke(null,inflater,parent,false) as B
+                    binding.lifecycleOwner=lifecycleOwner
+                    extras.forEach { key, value -> binding.setVariable(key,value) }
+                    prepare(binding)
+                    val view=binding.root
+                    view.setTag(R.id.tag_item_binidng,binding)
+                    return view
                 }
 
                 override fun onBindView(view: View,item: Any?,position: Int,totalCount: Int) {
-                    val method=B::class.java.getDeclaredMethod("bind",View::class.java)
-                    if(!method.isAccessible)method.isAccessible=true
-                    val binding=method.invoke(null,view) as B
+                    val binding=view.getTag(R.id.tag_item_binidng) as B
                     val typedItem=item as T
                     clickListeners.forEach { entry->
                         val v=entry.key?.get(binding)?:binding.root
