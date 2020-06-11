@@ -9,17 +9,17 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import androidx.appcompat.view.ContextThemeWrapper
+import androidx.arch.core.executor.ArchTaskExecutor
 import androidx.core.util.forEach
 import androidx.databinding.ViewDataBinding
 import androidx.lifecycle.LifecycleOwner
 import androidx.paging.PagedList
 import androidx.paging.PagedListAdapter
-import androidx.recyclerview.widget.AsyncListDiffer
+import androidx.paging.PositionalDataSource
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewbinding.ViewBinding
 import androidx.viewpager.widget.PagerAdapter
-import java.lang.IllegalArgumentException
 import kotlin.reflect.KProperty1
 
 data class ItemInfo<B:ViewBinding,T>(
@@ -207,47 +207,7 @@ private object DefaultDiffCallback:DiffUtil.ItemCallback<Any?>(){
     override fun areContentsTheSame(oldItem: Any, newItem: Any): Boolean = oldItem.hashCode()==newItem.hashCode()
 }
 
-class RecyclerViewAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDiffCallback,private val itemBindings:Set<ItemBinding>):RecyclerView.Adapter<RecyclerViewAdapter.ViewHolder>(){
-    constructor(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDiffCallback,vararg itemBindings: ItemBinding):this(itemCallback,itemBindings.toSet())
-    private val differ=AsyncListDiffer(this,itemCallback)
-    private val bindings= arrayListOf<ItemBinding>()
-
-    fun submitList(list:Iterable<*>?,submitCallback:()->Unit={}){
-        val items=list?.toList()
-        runCatching {
-            differ.submitList(items,submitCallback)
-        }.onFailure {
-            differ.submitList(null)
-            differ.submitList(items,submitCallback)
-        }
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder = ViewHolder(bindings[viewType],parent)
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) = holder.binding.onBindView(holder.itemView,differ.currentList[position],position,itemCount)
-
-    override fun onViewRecycled(holder: ViewHolder) = holder.binding.onUnbindView(holder.itemView)
-
-    override fun getItemCount(): Int = differ.currentList.size
-
-    override fun getItemViewType(position: Int): Int {
-        val item=differ.currentList[position]
-        val count=itemCount
-        val binding=itemBindings.find { it.canBind(item,position,count) }?:throw IllegalArgumentException("No item binding found for $item")
-        var type=bindings.indexOf(binding)
-        if(type<0){
-            type=bindings.size
-            bindings.add(binding)
-        }
-        return type
-    }
-
-    class ViewHolder(val binding: ItemBinding,parent:ViewGroup):RecyclerView.ViewHolder(
-        binding.onCreateView(LayoutInflater.from(parent.context),parent)
-    )
-}
-
-class RecyclerViewPagedAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDiffCallback,private val itemBindings:Set<ItemBinding>):PagedListAdapter<Any,RecyclerViewPagedAdapter.ViewHolder>(itemCallback){
+class RecyclerViewAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDiffCallback,private val itemBindings:Set<ItemBinding>):PagedListAdapter<Any,RecyclerViewAdapter.ViewHolder>(itemCallback){
     constructor(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDiffCallback,vararg itemBindings: ItemBinding):this(itemCallback,itemBindings.toSet())
     private val bindings= arrayListOf<ItemBinding>()
 
@@ -269,14 +229,19 @@ class RecyclerViewPagedAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = Defau
         return type
     }
 
-    override fun submitList(pagedList: PagedList<Any>?) {
-        runCatching {
-            super.submitList(pagedList)
-        }.onFailure {
-            super.submitList(null)
-            super.submitList(pagedList)
-        }
+    fun submitList(list:Iterable<Any>?) = submitList(list,null)
+
+    @SuppressLint("RestrictedApi")
+    fun submitList(list:Iterable<Any>?, commitCallback: Runnable?){
+        if(list is PagedList<*>)submitList(list as PagedList<Any>,commitCallback)
+        val pagedList=PagedList.Builder(ListDataSource(list?.toList()?: emptyList()),10)
+            .setNotifyExecutor(ArchTaskExecutor.getMainThreadExecutor())
+            .setFetchExecutor(ArchTaskExecutor.getIOThreadExecutor())
+            .build()
+        submitList(pagedList)
     }
+
+    override fun submitList(pagedList: PagedList<Any>?) = submitList(pagedList,null)
 
     override fun submitList(pagedList: PagedList<Any>?, commitCallback: Runnable?) {
         runCatching {
@@ -290,6 +255,25 @@ class RecyclerViewPagedAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = Defau
     class ViewHolder(val binding: ItemBinding,parent:ViewGroup):RecyclerView.ViewHolder(
         binding.onCreateView(LayoutInflater.from(parent.context),parent)
     )
+
+    private class ListDataSource<T>(private val list: List<T>) : PositionalDataSource<T>() {
+        override fun loadInitial(params: LoadInitialParams,callback: LoadInitialCallback<T>) {
+            val totalCount = list.size
+            val position = computeInitialLoadPosition(params, totalCount)
+            val loadSize = computeInitialLoadSize(params, position, totalCount)
+            val sublist = list.subList(position, position + loadSize)
+            callback.onResult(sublist, position, totalCount)
+        }
+
+        override fun loadRange(params: LoadRangeParams, callback: LoadRangeCallback<T>) {
+            callback.onResult(
+                list.subList(
+                    params.startPosition,
+                    params.startPosition + params.loadSize
+                )
+            )
+        }
+    }
 }
 
 class ViewPagerAdapter(private val itemBindings:Set<ItemBinding>):PagerAdapter(){
