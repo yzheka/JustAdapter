@@ -229,16 +229,17 @@ class RecyclerViewAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDif
         return type
     }
 
-    fun submitList(list:Iterable<Any>?) = submitList(list,null)
+    fun submit(list:Iterable<*>?) = submit(list,null)
 
+    @Suppress("UNCHECKED_CAST")
     @SuppressLint("RestrictedApi")
-    fun submitList(list:Iterable<Any>?, commitCallback: Runnable?){
+    fun submit(list:Iterable<*>?, commitCallback: Runnable?){
         if(list is PagedList<*>)submitList(list as PagedList<Any>,commitCallback)
         val pagedList=PagedList.Builder(ListDataSource(list?.toList()?: emptyList()),10)
             .setNotifyExecutor(ArchTaskExecutor.getMainThreadExecutor())
             .setFetchExecutor(ArchTaskExecutor.getIOThreadExecutor())
             .build()
-        submitList(pagedList)
+        submitList(pagedList as PagedList<Any>)
     }
 
     override fun submitList(pagedList: PagedList<Any>?) = submitList(pagedList,null)
@@ -247,7 +248,7 @@ class RecyclerViewAdapter(itemCallback: DiffUtil.ItemCallback<Any?> = DefaultDif
         runCatching {
             super.submitList(pagedList,commitCallback)
         }.onFailure {
-            super.submitList(null)
+            super.submitList(null,null)
             super.submitList(pagedList,commitCallback)
         }
     }

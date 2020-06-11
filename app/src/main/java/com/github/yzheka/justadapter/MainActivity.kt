@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         val binding=ActivityMainBinding.inflate(layoutInflater)
         binding.listView.adapter=SimpleArrayAdapter(this,bindings).also { it.submitList(items) }
         binding.pager.adapter=ViewPagerAdapter(bindings).also { it.submitList(items) }
-        binding.recyclerView.adapter=RecyclerViewAdapter(itemBindings = bindings).also { it.submitList(items) }
+        binding.recyclerView.adapter=RecyclerViewAdapter(itemBindings = bindings).also { it.submit(items) }
         setContentView(binding.root)
     }
 }
